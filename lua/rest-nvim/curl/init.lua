@@ -211,6 +211,7 @@ M.curl_cmd = function(opts)
     return
   else
     opts.callback = vim.schedule_wrap(create_callback(opts.method, opts.url))
+
     curl[opts.method](opts)
   end
 end

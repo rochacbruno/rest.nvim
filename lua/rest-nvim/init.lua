@@ -28,6 +28,7 @@ rest.run = function(verbose)
     headers = result.headers,
     raw = config.get("skip_ssl_verification") and vim.list_extend(result.raw, { "-k" })
       or result.raw,
+    form = result.form,
     body = result.body,
     dry_run = verbose or false,
     bufnr = result.bufnr,
