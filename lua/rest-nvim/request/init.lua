@@ -138,6 +138,7 @@ end
 -- @param end_line Line where the request ends
 local function get_curl_args(bufnr, headers_end, end_line)
   local curl_args = {}
+  local form = {}
   local body_start = end_line
 
   for line_number = headers_end, end_line do
@@ -159,6 +160,14 @@ local function get_curl_args(bufnr, headers_end, end_line)
           x = ""
         end
       end
+      -- if it begins with -F then is a form
+      if line_content:find("^-F .+") then
+        local line_content_no_quotes = line_content:gsub('"', ""):gsub("'", "")
+        local form_table = vim.split(vim.split(line_content_no_quotes, " ")[2], "=")
+        form[form_table[1]] = form_table[2]
+      else
+        table.insert(curl_args, line_content)
+      end
     elseif not line_content:find("^ *$") then
       if line_number ~= end_line then
         body_start = line_number - 1
@@ -167,7 +176,7 @@ local function get_curl_args(bufnr, headers_end, end_line)
     end
   end
 
-  return curl_args, body_start
+  return curl_args, form, body_start
 end
 
 -- start_request will find the request line (e.g. POST http://localhost:8081/foo)
@@ -276,7 +285,7 @@ M.buf_get_request = function(bufnr, curpos)
 
   local headers, headers_end = get_headers(bufnr, start_line, end_line)
 
-  local curl_args, body_start = get_curl_args(bufnr, headers_end, end_line)
+  local curl_args, form, body_start = get_curl_args(bufnr, headers_end, end_line)
 
   local host_header = find_header(headers, "host")
   if host_header ~= nil then
@@ -287,12 +296,24 @@ M.buf_get_request = function(bufnr, curpos)
   end
 
   local content_type_header = find_header(headers, "content-type") or ""
-  local body = get_body(
-    bufnr,
-    body_start,
-    end_line,
-    string.find(content_type_header, "application/[^ ]-json")
-  )
+  local body
+  if form then
+    if body_start ~= end_line then
+      body = get_body(
+        bufnr,
+        body_start,
+        end_line,
+        string.find(content_type_header, "application/[^ ]-json")
+      )
+    end
+  else
+    body = get_body(
+      bufnr,
+      body_start,
+      end_line,
+      string.find(content_type_header, "application/[^ ]-json")
+    )
+  end
 
   if config.get("jump_to_request") then
     utils.move_cursor(bufnr, start_line)
@@ -306,6 +327,7 @@ M.buf_get_request = function(bufnr, curpos)
     http_version = parsed_url.http_version,
     headers = headers,
     raw = curl_args,
+    form = form,
     body = body,
     bufnr = bufnr,
     start_line = start_line,
